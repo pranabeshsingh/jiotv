@@ -11,6 +11,7 @@ from app.config import Settings
 
 logger = logging.getLogger(__name__)
 
+MOBILE_CHANNELS_URL = "https://jiotvapi.cdn.jio.com/apis/v3.1/getMobileChannelList/get/?langId=6&os=android&devicetype=phone&usertype=JIO&version=315&langId=6"
 CDN_DATA_URL = "https://jiotv.data.cdn.jio.com/apis/v1.4/getallchannel.php"
 IMAGE_BASE_URL = "https://jiotv.catchup.cdn.jio.com/dare_images/images/"
 
@@ -81,8 +82,20 @@ class ChannelManager:
 
         try:
             async with httpx.AsyncClient(**client_kwargs) as client:
-                headers = {"User-Agent": "okhttp/4.9.3"}
-                resp = await client.get(CDN_DATA_URL, headers=headers)
+                headers = {
+                    "User-Agent": "okhttp/4.9.3",
+                    "Accept": "application/json",
+                    "devicetype": "phone",
+                    "os": "android",
+                    "appkey": "NzNiMDhlYzQyNjJm",
+                    "lbcookie": "1",
+                    "usertype": "JIO",
+                }
+                resp = await client.get(MOBILE_CHANNELS_URL, headers=headers)
+                if resp.status_code != 200:
+                    logger.warning(f"Mobile channel list endpoint returned HTTP {resp.status_code}, falling back to CDN...")
+                    resp = await client.get(CDN_DATA_URL, headers={"User-Agent": "okhttp/4.9.3"})
+
                 if resp.status_code == 450:
                     raise RuntimeError("Jio CDN returned HTTP 450 block. Please enable Upstream Residential Proxy in Settings.")
                 if resp.status_code != 200:
@@ -108,6 +121,8 @@ class ChannelManager:
 
                     genre = CATEGORY_MAP.get(cat_id, "General")
                     language = LANGUAGE_MAP.get(lang_id, "Other")
+                    business_type = (ch.get("business_type") or "free").strip().lower()
+                    is_premium = (business_type == "premium")
 
                     normalized.append({
                         "channel_id": int(c_id),
@@ -116,6 +131,8 @@ class ChannelManager:
                         "genre": genre,
                         "logo": logo_url,
                         "is_hd": is_hd,
+                        "business_type": business_type,
+                        "is_premium": is_premium,
                     })
 
                 normalized.sort(key=lambda x: (x["channel_name"]))
@@ -138,9 +155,13 @@ class ChannelManager:
         genre: Optional[str] = None,
         search: Optional[str] = None,
         is_hd: Optional[bool] = None,
+        working_only: bool = False,
     ) -> List[Dict[str, Any]]:
         channels = self.get_channels_cache()
         filtered = channels
+
+        if working_only:
+            filtered = [c for c in filtered if not c.get("is_premium", False)]
 
         if lang:
             langs = [item.strip().lower() for item in lang.split(",")]
@@ -165,9 +186,10 @@ class ChannelManager:
         lang: Optional[str] = None,
         genre: Optional[str] = None,
         is_hd: Optional[bool] = None,
+        working_only: bool = False,
     ) -> str:
         base = base_url.rstrip("/")
-        channels = self.get_channels(lang=lang, genre=genre, is_hd=is_hd)
+        channels = self.get_channels(lang=lang, genre=genre, is_hd=is_hd, working_only=working_only)
         epg_url = f"{base}/epg.xml.gz"
 
         lines = [f'#EXTM3U x-tvg-url="{epg_url}"']
@@ -187,6 +209,7 @@ class ChannelManager:
             lines.append(stream_url)
 
         return "\n".join(lines) + "\n"
+
 
     def get_epg_path(self) -> Path:
         if not self.epg_file.exists():

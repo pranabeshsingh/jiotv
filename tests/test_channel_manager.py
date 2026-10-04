@@ -71,3 +71,24 @@ def test_filter_channels(channel_mgr: ChannelManager, tmp_path: Path):
     english = channel_mgr.get_channels(lang="English")
     assert len(english) == 1
     assert english[0]["channel_name"] == "BBC News"
+
+
+def test_channel_manager_working_filter(channel_mgr: ChannelManager):
+    channel_mgr._channels_cache = [
+        {"channel_id": 154, "channel_name": "Sony SAB", "business_type": "premium", "is_premium": True},
+        {"channel_id": 474, "channel_name": "Sony Pal", "business_type": "free", "is_premium": False},
+        {"channel_id": 173, "channel_name": "Aaj Tak", "business_type": "free", "is_premium": False},
+        {"channel_id": 100, "channel_name": "Jio Cinema", "business_type": "jio", "is_premium": False},
+    ]
+    all_channels = channel_mgr.get_channels(working_only=False)
+    assert len(all_channels) == 4
+
+    working_channels = channel_mgr.get_channels(working_only=True)
+    assert len(working_channels) == 3
+    assert not any(c["channel_name"] == "Sony SAB" for c in working_channels)
+
+    # Test in generate_m3u
+    m3u_working = channel_mgr.generate_m3u(base_url="https://tv.trylocalhost.com", working_only=True)
+    assert "Sony Pal" in m3u_working
+    assert "Sony SAB" not in m3u_working
+
