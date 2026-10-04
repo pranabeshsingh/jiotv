@@ -1,0 +1,16 @@
+[Unit]
+Description=JioTV Go IPTV Service
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/jiotv_go
+ExecStart=/opt/jiotv_go/jiotv_go -c /opt/jiotv_go/jiotv_go.yaml serve --host 127.0.0.1 --port 5001
+Restart=always
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

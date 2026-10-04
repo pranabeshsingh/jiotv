@@ -1,0 +1,9 @@
+epg: true
+debug: false
+disable_ts_handler: true
+disable_logout: false
+drm: true
+title: "JioTV"
+path_prefix: "/opt/jiotv_go/data"
+log_to_stdout: true
+proxy: "http://100.107.251.122:8888"

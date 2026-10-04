@@ -238,7 +238,7 @@ async def test_send_otp_success(api_client: JioApiClient):
         mock_post.return_value = httpx.Response(
             200, json={"status": "success", "message": "OTP sent successfully"}
         )
-        res = await api_client.send_otp("+919031042585")
+        res = await api_client.send_otp("+919999999999")
         assert res["status"] == "success"
         assert mock_post.called
 

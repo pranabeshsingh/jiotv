@@ -17,7 +17,7 @@ async def test_send_otp_success(api_client: JioApiClient):
         mock_post.return_value = httpx.Response(
             204, headers={"content-type": "application/json"}
         )
-        res = await api_client.send_otp("+919031042585")
+        res = await api_client.send_otp("+919999999999")
         assert res["status"] == "success"
         assert mock_post.called
 
@@ -35,7 +35,7 @@ async def test_verify_otp_success(api_client: JioApiClient, tmp_path: Path):
     }
     with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
         mock_post.return_value = httpx.Response(200, json=mock_resp)
-        res = await api_client.verify_otp("+919031042585", "123456")
+        res = await api_client.verify_otp("+919999999999", "123456")
         assert res["status"] == "success"
         assert (tmp_path / "auth.json").exists()
         auth_data = json.loads((tmp_path / "auth.json").read_text())

@@ -1,0 +1,12 @@
+[Unit]
+Description=JioTV Outbound Residential Proxy
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 %h/bin/jio_proxy.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
