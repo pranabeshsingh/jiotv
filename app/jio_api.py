@@ -67,6 +67,23 @@ class JioApiClient:
         subscriber_name = auth.get("subscriberName") or auth.get("name") or "Jio Subscriber"
         mobile = auth.get("mobile", "")
         last_refresh = auth.get("lastTokenRefreshTime", "")
+        entitlements_file = self.data_dir / "entitlements.json"
+        has_premium = False
+        plan_desc = "Standard Jio Mobile"
+        if entitlements_file.exists():
+            try:
+                data = json.loads(entitlements_file.read_text(encoding="utf-8"))
+                for pkg in data.get("PackageInfo", []):
+                    b_type = str(pkg.get("business_type", "")).lower()
+                    p_name = str(pkg.get("package_name", "")).lower()
+                    p_id = str(pkg.get("planid", "")).lower()
+                    if b_type == "premium" or "premium" in p_name or "rs55" in p_id:
+                        has_premium = True
+                        plan_desc = "JioTV Premium Active"
+                        break
+            except Exception:
+                pass
+
         return {
             "logged_in": logged_in,
             "subscriber_name": subscriber_name,
@@ -74,7 +91,59 @@ class JioApiClient:
             "has_access_token": bool(auth.get("accessToken") or auth.get("access_token")),
             "last_refresh": last_refresh,
             "device_id": self.device_id,
+            "has_premium": has_premium,
+            "plan_desc": plan_desc,
         }
+
+    async def get_entitlements(self, force: bool = False) -> Dict[str, Any]:
+        entitlements_file = self.data_dir / "entitlements.json"
+        if not force and entitlements_file.exists():
+            try:
+                return json.loads(entitlements_file.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+
+        auth = self.load_auth_data()
+        sso_token = auth.get("ssoToken") or auth.get("sso_token", "")
+        if not sso_token:
+            return {}
+
+        url = f"https://{JIOTV_API_DOMAIN}/userservice/apis/v1/plans"
+        headers = {
+            "User-Agent": USER_AGENT,
+            "devicetype": DEVICE_TYPE,
+            "os": OS_NAME,
+            "ssoToken": sso_token,
+            "crm": auth.get("crm", ""),
+            "uniqueId": auth.get("uniqueId") or auth.get("unique_id", ""),
+        }
+        client_kwargs = {"timeout": 10.0}
+        if self.settings.proxy_enabled and self.settings.proxy_url:
+            client_kwargs["proxy"] = self.settings.proxy_url
+
+        try:
+            async with httpx.AsyncClient(**client_kwargs) as client:
+                resp = await client.get(url, headers=headers)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    self.data_dir.mkdir(parents=True, exist_ok=True)
+                    entitlements_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
+                    return data
+        except Exception as e:
+            logger.warning(f"Failed to fetch user entitlements: {e}")
+        return {}
+
+    async def has_premium_entitlement(self, force: bool = False) -> bool:
+        data = await self.get_entitlements(force=force)
+        pkg_info = data.get("PackageInfo", [])
+        for pkg in pkg_info:
+            b_type = str(pkg.get("business_type", "")).lower()
+            p_name = str(pkg.get("package_name", "")).lower()
+            p_id = str(pkg.get("planid", "")).lower()
+            if b_type == "premium" or "premium" in p_name or "rs55" in p_id:
+                return True
+        return False
+
 
     async def send_otp(self, mobile: str) -> Dict[str, Any]:
         cleaned = mobile.strip().replace(" ", "").replace("-", "")

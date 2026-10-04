@@ -62,3 +62,34 @@ async def test_get_playback_url(api_client: JioApiClient, tmp_path: Path):
         )
         url = await api_client.get_playback_url("202")
         assert "jiotvbpkmob.cdn.jio.com" in url
+
+
+@pytest.mark.asyncio
+async def test_has_premium_entitlement(api_client: JioApiClient, tmp_path: Path):
+    auth_file = tmp_path / "auth.json"
+    auth_file.write_text(json.dumps({
+        "ssoToken": "mock_sso",
+        "accessToken": "mock_access",
+        "crm": "mock_crm",
+        "uniqueId": "mock_uid",
+    }))
+
+    # 1. Base plan only
+    mock_base = {"PackageInfo": [{"planid": "1", "package_name": "jio", "business_type": "jio"}]}
+    with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = httpx.Response(200, json=mock_base)
+        has_prem = await api_client.has_premium_entitlement()
+        assert has_prem is False
+
+    # 2. Premium plan active
+    mock_prem = {
+        "PackageInfo": [
+            {"planid": "1", "package_name": "jio", "business_type": "jio"},
+            {"planid": "Rs55_30D_JioTV", "package_name": "JioTV Premium", "business_type": "premium"}
+        ]
+    }
+    with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = httpx.Response(200, json=mock_prem)
+        has_prem = await api_client.has_premium_entitlement(force=True)
+        assert has_prem is True
+
