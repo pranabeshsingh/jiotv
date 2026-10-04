@@ -25,6 +25,40 @@ async def get_playlist(
     lang: Optional[str] = Query(None, description="Comma-separated language filter (e.g. Hindi,English)"),
     genre: Optional[str] = Query(None, description="Comma-separated genre filter (e.g. Entertainment,News)"),
     is_hd: Optional[bool] = Query(None, description="Filter for HD channels"),
+    filter: Optional[str] = Query(None, description="Filter channels, e.g. 'working', 'free', 'subscribed'"),
+    working: Optional[bool] = Query(None, description="Set to true to only include working/unlocked channels"),
+):
+    settings: Settings = request.app.state.settings
+    channel_mgr: ChannelManager = request.app.state.channel_manager
+    base_url = get_base_url(request, settings)
+
+    working_only = False
+    if working:
+        working_only = True
+    elif filter and filter.strip().lower() in ("working", "free", "subscribed"):
+        working_only = True
+
+    m3u_content = channel_mgr.generate_m3u(
+        base_url=base_url,
+        lang=lang,
+        genre=genre,
+        is_hd=is_hd,
+        working_only=working_only,
+    )
+    return PlainTextResponse(
+        content=m3u_content,
+        media_type="application/vnd.apple.mpegurl",
+        headers={"Content-Disposition": 'inline; filename="playlist.m3u"'},
+    )
+
+
+@router.get("/playlist_working.m3u", response_class=PlainTextResponse)
+@router.get("/working.m3u", response_class=PlainTextResponse)
+async def get_working_playlist(
+    request: Request,
+    lang: Optional[str] = Query(None),
+    genre: Optional[str] = Query(None),
+    is_hd: Optional[bool] = Query(None),
 ):
     settings: Settings = request.app.state.settings
     channel_mgr: ChannelManager = request.app.state.channel_manager
@@ -35,12 +69,14 @@ async def get_playlist(
         lang=lang,
         genre=genre,
         is_hd=is_hd,
+        working_only=True,
     )
     return PlainTextResponse(
         content=m3u_content,
         media_type="application/vnd.apple.mpegurl",
-        headers={"Content-Disposition": 'inline; filename="playlist.m3u"'},
+        headers={"Content-Disposition": 'inline; filename="playlist_working.m3u"'},
     )
+
 
 
 @router.get("/epg.xml.gz")

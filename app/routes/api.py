@@ -139,12 +139,22 @@ async def list_channels(
     genre: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
     is_hd: Optional[bool] = Query(None),
+    filter: Optional[str] = Query(None),
+    working: Optional[bool] = Query(None),
 ):
     channel_mgr: ChannelManager = request.app.state.channel_manager
+    working_only = False
+    if working:
+        working_only = True
+    elif filter and filter.strip().lower() in ("working", "free", "subscribed"):
+        working_only = True
+
     channels = channel_mgr.get_channels(
         lang=lang,
         genre=genre,
         search=search,
         is_hd=is_hd,
+        working_only=working_only,
     )
     return {"total": len(channels), "channels": channels}
+
