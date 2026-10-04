@@ -1,7 +1,8 @@
-from pathlib import Path
 import json
-import pytest
+from pathlib import Path
+
 from app.config import Settings, load_settings, save_runtime_settings
+
 
 def test_settings_defaults(tmp_path: Path):
     settings = Settings(data_dir=tmp_path)
@@ -15,7 +16,7 @@ def test_runtime_settings_override(tmp_path: Path):
         "proxy_enabled": True,
         "proxy_url": "http://100.107.251.122:8888"
     }))
-    
+
     settings = load_settings(data_dir=tmp_path)
     assert settings.proxy_enabled is True
     assert settings.proxy_url == "http://100.107.251.122:8888"

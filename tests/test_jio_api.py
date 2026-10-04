@@ -1,10 +1,13 @@
-import pytest
-from unittest.mock import AsyncMock, patch
-from pathlib import Path
 import json
+from pathlib import Path
+from unittest.mock import AsyncMock, patch
+
 import httpx
+import pytest
+
 from app.config import Settings
 from app.jio_api import JioApiClient
+
 
 @pytest.fixture
 def api_client(tmp_path: Path):
@@ -52,7 +55,7 @@ async def test_get_playback_url(api_client: JioApiClient, tmp_path: Path):
         "uniqueId": "mock_uid",
         "deviceId": "mock_device"
     }))
-    
+
     with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
         mock_post.return_value = httpx.Response(
             200, json={"result": "https://jiotvbpkmob.cdn.jio.com/bpk-tv/202/Fallback/index.m3u8?token=xyz"}

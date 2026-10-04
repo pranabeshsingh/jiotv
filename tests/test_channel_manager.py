@@ -1,9 +1,12 @@
-import pytest
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
+
 import httpx
-from app.config import Settings
+import pytest
+
 from app.channel_manager import ChannelManager
+from app.config import Settings
+
 
 @pytest.fixture
 def channel_mgr(tmp_path: Path):
@@ -32,15 +35,15 @@ async def test_sync_channels_and_generate_m3u(channel_mgr: ChannelManager, tmp_p
             }
         ]
     }
-    
+
     with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
         mock_get.return_value = httpx.Response(200, json=mock_catalog)
         count = await channel_mgr.sync_channels()
         assert count == 2
-        
+
         # Verify cached file
         assert (tmp_path / "channels.json").exists()
-        
+
         # Verify M3U generation
         m3u = channel_mgr.generate_m3u(base_url="https://tv.trylocalhost.com")
         assert "#EXTM3U" in m3u
@@ -58,12 +61,12 @@ def test_filter_channels(channel_mgr: ChannelManager, tmp_path: Path):
     ]
     import json
     (tmp_path / "channels.json").write_text(json.dumps(data))
-    
+
     # Filter by genre
     news = channel_mgr.get_channels(genre="News")
     assert len(news) == 2
     assert all(c["genre"] == "News" for c in news)
-    
+
     # Filter by language
     english = channel_mgr.get_channels(lang="English")
     assert len(english) == 1

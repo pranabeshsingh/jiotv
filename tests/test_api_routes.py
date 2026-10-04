@@ -1,8 +1,11 @@
-import pytest
-from httpx import AsyncClient, ASGITransport
 from pathlib import Path
-from app.main import create_app
+
+import pytest
+from httpx import ASGITransport, AsyncClient
+
 from app.config import Settings
+from app.main import create_app
+
 
 @pytest.fixture
 def app(tmp_path: Path):
@@ -30,7 +33,7 @@ async def test_update_proxy_settings_api(app, tmp_path: Path):
         data = resp.json()
         assert data["proxy_enabled"] is True
         assert data["proxy_url"] == "http://100.107.251.122:8888"
-        
+
         # Verify persistence and updated status
         status_resp = await client.get("/api/status")
         assert status_resp.json()["proxy_enabled"] is True

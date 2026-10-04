@@ -1,8 +1,11 @@
-import pytest
-from httpx import AsyncClient, ASGITransport
 from pathlib import Path
-from app.main import create_app
+
+import pytest
+from httpx import ASGITransport, AsyncClient
+
 from app.config import Settings
+from app.main import create_app
+
 
 @pytest.fixture
 def app(tmp_path: Path):

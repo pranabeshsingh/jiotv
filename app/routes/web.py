@@ -1,6 +1,6 @@
 from pathlib import Path
-from typing import Optional
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
+
+from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 

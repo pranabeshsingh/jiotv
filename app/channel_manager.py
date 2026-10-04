@@ -1,9 +1,9 @@
 import gzip
 import json
 import logging
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-import xml.etree.ElementTree as ET
 
 import httpx
 
@@ -143,7 +143,7 @@ class ChannelManager:
         filtered = channels
 
         if lang:
-            langs = [l.strip().lower() for l in lang.split(",")]
+            langs = [item.strip().lower() for item in lang.split(",")]
             filtered = [c for c in filtered if c.get("language", "").lower() in langs]
 
         if genre:
@@ -183,7 +183,7 @@ class ChannelManager:
             lines.append(
                 f'#EXTINF:-1 tvg-id="{cid}" tvg-name="{name}" tvg-logo="{logo}" group-title="{group}" tvg-language="{c_lang}", {name}'
             )
-            lines.append(f"#KODIPROP:inputstream.adaptive.manifest_type=mpd")
+            lines.append("#KODIPROP:inputstream.adaptive.manifest_type=mpd")
             lines.append(stream_url)
 
         return "\n".join(lines) + "\n"

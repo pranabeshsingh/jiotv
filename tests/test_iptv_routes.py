@@ -1,10 +1,13 @@
-import pytest
-from httpx import AsyncClient, ASGITransport
-from unittest.mock import AsyncMock, patch
-from pathlib import Path
 import json
-from app.main import create_app
+from pathlib import Path
+from unittest.mock import AsyncMock, patch
+
+import pytest
+from httpx import ASGITransport, AsyncClient
+
 from app.config import Settings
+from app.main import create_app
+
 
 @pytest.fixture
 def app(tmp_path: Path):
@@ -21,7 +24,7 @@ def app(tmp_path: Path):
     ]))
     epg_file = tmp_path / "epg.xml.gz"
     epg_file.write_bytes(b"dummy_epg_data")
-    
+
     settings = Settings(data_dir=tmp_path, base_url="https://tv.trylocalhost.com")
     return create_app(settings=settings)
 

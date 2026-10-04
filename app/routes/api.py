@@ -1,8 +1,8 @@
 import logging
 from typing import Any, Dict, Optional
-from pydantic import BaseModel
 
 from fastapi import APIRouter, HTTPException, Query, Request
+from pydantic import BaseModel
 
 from app.channel_manager import ChannelManager
 from app.config import Settings, save_runtime_settings

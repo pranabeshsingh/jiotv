@@ -1,9 +1,8 @@
 import json
-import re
 import shutil
 import sys
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 
 try:
     import tomllib
