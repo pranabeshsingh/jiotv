@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}JioTV IPTV Server{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-layout">
+    <header class="app-header">
+      <div class="header-content">
+        <div class="brand">
+          <div class="brand-icon">
+            <svg viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect>
+              <polyline points="17 2 12 7 7 2"></polyline>
+            </svg>
+          </div>
+          <div class="brand-text">
+            <span class="brand-title">JioTV</span>
+            <span class="brand-subtitle">IPTV Server</span>
+          </div>
+        </div>
+        
+        <div class="header-status">
+          <div id="header-jio-badge" class="status-badge checking">
+            <span class="pulse-dot"></span>
+            <span class="badge-text">Checking Jio Account...</span>
+          </div>
+          
+          <button id="btn-open-otp" class="btn btn-secondary btn-sm" onclick="openOtpModal()">
+            Jio Login
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="app-main">
+      {% block content %}{% endblock %}
+    </main>
+
+    <footer class="app-footer">
+      <div class="footer-content">
+        <span>JioTV Headless IPTV Server • Kodi & IPTV Stream Engine</span>
+        <span>Zero-Bandwidth 302 CDN Stream Passthrough</span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- OTP Modal -->
+  <div id="otp-modal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">JioTV Mobile Authentication</h3>
+        <button class="modal-close" onclick="closeOtpModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">
+          Enter your 10-digit Jio mobile number to receive a one-time login OTP via SMS.
+        </p>
+
+        <div id="otp-step-1" class="form-group">
+          <label class="form-label">Mobile Number</label>
+          <div class="input-prefix-group">
+            <span class="input-prefix">+91</span>
+            <input type="tel" id="otp-mobile-input" class="form-input" placeholder="9876543210" maxlength="10">
+          </div>
+          <button id="btn-send-otp" class="btn btn-primary btn-block mt-3" onclick="sendOtp()">
+            Send OTP SMS
+          </button>
+        </div>
+
+        <div id="otp-step-2" class="form-group hidden">
+          <div class="otp-sent-info">
+            OTP sent to <strong id="otp-target-number"></strong>
+            <button class="btn-link" onclick="resetOtpStep()">Change</button>
+          </div>
+          <label class="form-label mt-2">Enter 6-Digit OTP</label>
+          <input type="text" id="otp-code-input" class="form-input text-center font-mono letter-spacing-lg" placeholder="••••••" maxlength="6">
+          <button id="btn-verify-otp" class="btn btn-primary btn-block mt-3" onclick="verifyOtp()">
+            Verify & Sign In
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>

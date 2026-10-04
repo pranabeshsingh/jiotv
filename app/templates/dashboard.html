@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-container">
+  <!-- Top Navigation Tabs -->
+  <div class="nav-tabs">
+    <button class="nav-tab active" data-tab="overview" onclick="switchTab('overview')">
+      <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+      Overview & Health
+    </button>
+    <button class="nav-tab" data-tab="network" onclick="switchTab('network')">
+      <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+      Network & Proxy Settings
+    </button>
+    <button class="nav-tab" data-tab="setup" onclick="switchTab('setup')">
+      <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+      Client Setup (Kodi / IPTV)
+    </button>
+    <button class="nav-tab" data-tab="channels" onclick="switchTab('channels')">
+      <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+      Channel Catalog (<span id="tab-channel-count">{{ channels_count }}</span>)
+    </button>
+  </div>
+
+  <!-- TAB 1: OVERVIEW -->
+  <div id="tab-content-overview" class="tab-pane active">
+    <div class="metrics-grid">
+      <div class="card metric-card">
+        <div class="metric-label">JioTV Account</div>
+        <div class="metric-value" id="card-subscriber-name">{{ subscriber_name }}</div>
+        <div class="metric-sub" id="card-subscriber-mobile">{{ mobile if mobile else 'Not logged in' }}</div>
+      </div>
+      <div class="card metric-card">
+        <div class="metric-label">Live Channels</div>
+        <div class="metric-value highlight" id="card-channel-count">{{ channels_count }}</div>
+        <div class="metric-sub">Full Catalog Loaded</div>
+      </div>
+      <div class="card metric-card">
+        <div class="metric-label">Network Mode</div>
+        <div class="metric-value" id="card-network-mode">
+          {% if proxy_enabled %}Proxy Active{% else %}Direct Mode{% endif %}
+        </div>
+        <div class="metric-sub" id="card-network-sub">
+          {% if proxy_enabled %}{{ proxy_url }}{% else %}No proxy configured{% endif %}
+        </div>
+      </div>
+      <div class="card metric-card">
+        <div class="metric-label">Stream Delivery</div>
+        <div class="metric-value success">HTTP 302</div>
+        <div class="metric-sub">Direct Client-to-CDN</div>
+      </div>
+    </div>
+
+    <div class="card mt-4">
+      <div class="card-header">
+        <h3 class="card-title">Quick Server Controls</h3>
+      </div>
+      <div class="card-body action-bar">
+        <button class="btn btn-primary" onclick="syncChannelsNow()">
+          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+          Sync Catalog & EPG Now
+        </button>
+        <button class="btn btn-secondary" onclick="testConnectivity()">
+          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
+          Test Jio Reachability
+        </button>
+        <a href="/playlist.m3u" target="_blank" class="btn btn-ghost">
+          Download Playlist.m3u
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 2: NETWORK & PROXY SETTINGS -->
+  <div id="tab-content-network" class="tab-pane">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">Network & Upstream Proxy Configuration</h3>
+        <span class="badge" id="proxy-status-pill">
+          {% if proxy_enabled %}Proxy Active{% else %}Direct Connection{% endif %}
+        </span>
+      </div>
+      <div class="card-body">
+        <div class="info-alert">
+          <div class="alert-icon">💡</div>
+          <div class="alert-text">
+            <strong>When do you need a proxy?</strong><br>
+            • <strong>Direct Mode (Default)</strong>: If this server is hosted on a home PC, Raspberry Pi, or residential ISP, leave the proxy <strong>OFF</strong>. Jio connects directly.<br>
+            • <strong>Proxy Mode</strong>: Jio's Fastly CDN blocks cloud datacenters (Oracle Cloud, AWS, DigitalOcean) with <code>HTTP 450</code> for channel catalogs. If running in a cloud VM, enable this toggle and point to your residential proxy (e.g. over Tailscale).
+          </div>
+        </div>
+
+        <form id="network-form" onsubmit="saveSettings(event)" class="mt-4">
+          <div class="form-toggle-group">
+            <div>
+              <div class="form-toggle-title">Use Upstream Residential Proxy for CDN Sync</div>
+              <div class="form-toggle-desc">Routes channel catalog and metadata queries through your home proxy</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="input-proxy-enabled" {% if proxy_enabled %}checked{% endif %} onchange="toggleProxyInputs()">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="form-group mt-3" id="proxy-url-group">
+            <label class="form-label">Proxy URL (HTTP or SOCKS5)</label>
+            <input type="text" id="input-proxy-url" class="form-input font-mono" placeholder="http://100.107.251.122:8888" value="{{ proxy_url }}">
+            <span class="form-hint">Format: <code>http://[Tailscale-IP-or-Host]:[Port]</code> (e.g. Tailscale homeserver)</span>
+          </div>
+
+          <div class="form-group mt-3">
+            <label class="form-label">Public Base URL</label>
+            <input type="text" id="input-base-url" class="form-input font-mono" placeholder="https://tv.trylocalhost.com" value="{{ base_url }}">
+            <span class="form-hint">Used for generating M3U stream links and Kodi EPG pointers</span>
+          </div>
+
+          <div class="btn-group mt-4">
+            <button type="submit" class="btn btn-primary" id="btn-save-settings">
+              Save Settings
+            </button>
+            <button type="button" class="btn btn-secondary" onclick="testConnectivity()">
+              Test Connection
+            </button>
+          </div>
+        </form>
+
+        <!-- Connectivity Test Results Container -->
+        <div id="connectivity-results" class="test-results-panel hidden mt-4">
+          <h4 class="test-panel-title">Diagnostic Reachability Test</h4>
+          <div class="diag-grid">
+            <div class="diag-card" id="diag-playback-card">
+              <div class="diag-header">
+                <span>Jio Playback API (Direct 302 Engine)</span>
+                <span class="badge" id="diag-playback-badge">Testing...</span>
+              </div>
+              <div class="diag-body" id="diag-playback-details">Probing endpoint...</div>
+            </div>
+
+            <div class="diag-card" id="diag-cdn-card">
+              <div class="diag-header">
+                <span>Jio Fastly CDN (Channel Catalog & EPG)</span>
+                <span class="badge" id="diag-cdn-badge">Testing...</span>
+              </div>
+              <div class="diag-body" id="diag-cdn-details">Probing endpoint...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Standalone Proxy Setup Helper -->
+        <div class="helper-box mt-4">
+          <h4 class="helper-title">Need to run a residential companion proxy?</h4>
+          <p class="helper-desc">
+            If this server is hosted in Oracle Cloud and needs a residential Jio IP to fetch catalog updates, run this lightweight one-file Python proxy on your home machine connected via Tailscale:
+          </p>
+          <div class="code-box">
+            <code>python3 ~/bin/jio_proxy.py</code>
+            <button class="btn-copy" onclick="copyText('python3 ~/bin/jio_proxy.py')">Copy</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 3: CLIENT SETUP (KODI & IPTV) -->
+  <div id="tab-content-setup" class="tab-pane">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">Stream & EPG URLs</h3>
+      </div>
+      <div class="card-body">
+        <div class="url-copy-grid">
+          <div class="url-copy-box">
+            <label class="url-label">M3U Playlist URL</label>
+            <div class="copy-input-group">
+              <input type="text" readonly id="url-m3u" class="form-input font-mono" value="{{ base_url }}/playlist.m3u">
+              <button class="btn btn-secondary" onclick="copyInput('url-m3u')">Copy URL</button>
+            </div>
+          </div>
+
+          <div class="url-copy-box">
+            <label class="url-label">EPG XMLTV Guide URL</label>
+            <div class="copy-input-group">
+              <input type="text" readonly id="url-epg" class="form-input font-mono" value="{{ base_url }}/epg.xml.gz">
+              <button class="btn btn-secondary" onclick="copyInput('url-epg')">Copy URL</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card mt-4">
+      <div class="card-header">
+        <h3 class="card-title">Kodi PVR IPTV Simple Client Setup</h3>
+      </div>
+      <div class="card-body">
+        <div class="steps-list">
+          <div class="step-item">
+            <div class="step-number">1</div>
+            <div class="step-text">
+              <strong>Install Addon:</strong> In Kodi, navigate to <em>Settings ➔ Add-ons ➔ Install from repository ➔ PVR clients ➔ PVR IPTV Simple Client</em> and click <strong>Install</strong>.
+            </div>
+          </div>
+          <div class="step-item">
+            <div class="step-number">2</div>
+            <div class="step-text">
+              <strong>Configure M3U Playlist:</strong> Open Add-on Settings ➔ <em>General ➔ M3U Play List URL</em>, paste your URL: <code><span class="url-preview-m3u">{{ base_url }}/playlist.m3u</span></code>.
+            </div>
+          </div>
+          <div class="step-item">
+            <div class="step-number">3</div>
+            <div class="step-text">
+              <strong>Configure EPG Guide:</strong> In Add-on Settings ➔ <em>EPG ➔ XMLTV URL</em>, paste: <code><span class="url-preview-epg">{{ base_url }}/epg.xml.gz</span></code>.
+            </div>
+          </div>
+          <div class="step-item">
+            <div class="step-number">4</div>
+            <div class="step-text">
+              <strong>Enable InputStream Adaptive:</strong> Navigate to <em>Settings ➔ Add-ons ➔ VideoPlayer InputStream ➔ InputStream Adaptive</em> and ensure it is <strong>Enabled</strong> for hardware DRM video decoding.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 4: CHANNELS EXPLORER -->
+  <div id="tab-content-channels" class="tab-pane">
+    <div class="card">
+      <div class="card-header flex-between">
+        <h3 class="card-title">Live Channel Directory</h3>
+        <div class="filters-bar">
+          <input type="text" id="filter-search" class="form-input form-input-sm" placeholder="Search channels..." oninput="filterChannels()">
+          <select id="filter-language" class="form-select form-select-sm" onchange="filterChannels()">
+            <option value="">All Languages</option>
+            <option value="Hindi">Hindi</option>
+            <option value="English">English</option>
+            <option value="Bengali">Bengali</option>
+            <option value="Marathi">Marathi</option>
+            <option value="Tamil">Tamil</option>
+            <option value="Telugu">Telugu</option>
+            <option value="Punjabi">Punjabi</option>
+          </select>
+          <select id="filter-genre" class="form-select form-select-sm" onchange="filterChannels()">
+            <option value="">All Categories</option>
+            <option value="Entertainment">Entertainment</option>
+            <option value="News">News</option>
+            <option value="Movies">Movies</option>
+            <option value="Sports">Sports</option>
+            <option value="Music">Music</option>
+            <option value="Kids">Kids</option>
+          </select>
+        </div>
+      </div>
+      <div class="card-body">
+        <div id="channel-grid" class="channel-grid">
+          <div class="loading-state">Loading channels...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -12,6 +12,7 @@ from app.config import Settings, get_settings
 from app.jio_api import JioApiClient
 from app.routes.api import router as api_router
 from app.routes.iptv import router as iptv_router
+from app.routes.web import router as web_router
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +55,7 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
     # Routers
     app.include_router(iptv_router)
     app.include_router(api_router)
+    app.include_router(web_router)
 
     return app
 

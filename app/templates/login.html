@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="login-wrapper">
+  <div class="card login-card">
+    <div class="card-header text-center">
+      <h3 class="card-title">Dashboard Login</h3>
+      <p class="modal-desc mt-1">Please enter your administration password to access settings.</p>
+    </div>
+    <div class="card-body">
+      {% if error %}
+      <div class="info-alert alert-error mb-3">
+        <div class="alert-icon">⚠️</div>
+        <div class="alert-text">{{ error }}</div>
+      </div>
+      {% endif %}
+
+      <form method="POST" action="/login">
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input type="password" name="password" class="form-input" placeholder="••••••••" required autofocus>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block mt-3">
+          Sign In
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
