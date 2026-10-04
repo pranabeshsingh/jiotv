@@ -132,3 +132,16 @@ async def test_render_key_endpoint(app):
             assert resp.content == b"\x00" * 16
             assert resp.headers["content-type"] == "application/octet-stream"
 
+
+@pytest.mark.asyncio
+async def test_live_stream_fallback(app):
+    transport = ASGITransport(app=app)
+    with patch("app.jio_api.JioApiClient.get_playback_url", new_callable=AsyncMock) as mock_get_url:
+        mock_get_url.return_value = "https://cdn.jio.com/bpk-tv/SonySAB_MOB/Fallback/index.m3u8"
+        async with AsyncClient(transport=transport, base_url="https://tv.trylocalhost.com") as client:
+            # 154 should resolve 471 under the hood
+            resp = await client.get("/live/154.m3u8")
+            assert resp.status_code == 302 or resp.status_code == 200
+            mock_get_url.assert_called_with("471")
+
+

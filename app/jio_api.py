@@ -31,6 +31,13 @@ class JioApiClient:
         self.auth_file = self.data_dir / "auth.json"
         self._ensure_device_id()
 
+    def _client(self, timeout: float = 10.0, **kwargs: Any) -> httpx.AsyncClient:
+        client_kwargs: Dict[str, Any] = {"timeout": timeout}
+        if self.settings.proxy_enabled and self.settings.proxy_url:
+            client_kwargs["proxy"] = self.settings.proxy_url
+        client_kwargs.update(kwargs)
+        return httpx.AsyncClient(**client_kwargs)
+
     def _ensure_device_id(self) -> str:
         device_id_file = self.data_dir / "device_id.txt"
         if device_id_file.exists():
@@ -324,7 +331,7 @@ class JioApiClient:
             "srno": srno_str,
         }
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with self._client(timeout=10.0) as client:
             resp = await client.post(url, data=form_data, headers=headers)
             if resp.status_code == 401 or resp.status_code == 419:
                 refreshed = await self.refresh_token()
@@ -380,12 +387,7 @@ class JioApiClient:
         if hdnea_val:
             headers["Cookie"] = f"__hdnea__={hdnea_val}"
 
-        proxy = self.settings.proxy_url if self.settings.proxy_enabled else None
-        client_kwargs = {"timeout": 10.0, "http2": False}
-        if proxy:
-            client_kwargs["proxy"] = proxy
-
-        async with httpx.AsyncClient(**client_kwargs) as client:
+        async with self._client(timeout=10.0, http2=False) as client:
             resp = await client.get(key_url, headers=headers)
             if resp.status_code == 200:
                 return resp.content

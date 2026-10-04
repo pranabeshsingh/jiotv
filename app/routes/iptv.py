@@ -16,10 +16,26 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["IPTV"])
 
 
+# Map known dead/decommissioned SD channels whose legacy CDN variants 404
+# to their active HD equivalents.
+FALLBACK_CHANNEL_MAP = {
+    "154": "471",  # Sony SAB SD -> Sony SAB HD
+    "289": "476",  # Sony Max SD -> Sony Max HD
+    "514": "162",  # Sony Ten 1 SD -> Sony Ten 1 HD
+    "524": "892",  # Sony Ten 3 Hindi SD -> Sony Ten 3 HD Hindi
+    "525": "155",  # Sony Ten 5 SD -> Sony Ten 5 HD
+}
+
+
 def get_base_url(request: Request, settings: Settings) -> str:
     if settings.base_url:
         return settings.base_url.rstrip("/")
     return str(request.base_url).rstrip("/")
+
+
+def get_upstream_client(settings: Settings, timeout: float = 8.0) -> httpx.AsyncClient:
+    proxy = settings.proxy_url if (settings.proxy_enabled and settings.proxy_url) else None
+    return httpx.AsyncClient(proxy=proxy, timeout=timeout, follow_redirects=True)
 
 
 def rewrite_m3u8(content: str, parent_url: str, base_url: str, channel_id: str) -> str:
@@ -44,6 +60,16 @@ def rewrite_m3u8(content: str, parent_url: str, base_url: str, channel_id: str) 
                 new_key_uri = f"{base_url}/render.key?url={encoded_key_uri}&cid={channel_id}"
                 line = line[: m.start(1)] + new_key_uri + line[m.end(1) :]
             lines.append(line)
+        elif line.startswith("#EXT-X-MAP:"):
+            m = re.search(r'URI="([^"]+)"', line)
+            if m:
+                map_uri = m.group(1)
+                if not map_uri.startswith("http"):
+                    map_uri = f"{cdn_base}/{map_uri}"
+                if query and "?" not in map_uri:
+                    map_uri = f"{map_uri}?{query}"
+                line = line[: m.start(1)] + map_uri + line[m.end(1) :]
+            lines.append(line)
         elif line.startswith("#"):
             m = re.search(r'URI="([^"]+)"', line)
             if m and (line.endswith('.m3u8"') or ".m3u8?" in line):
@@ -63,12 +89,7 @@ def rewrite_m3u8(content: str, parent_url: str, base_url: str, channel_id: str) 
                     sub_url = f"{sub_url}?{query}"
                 encoded_sub = urllib.parse.quote(sub_url, safe="")
                 lines.append(f"{base_url}/render.m3u8?url={encoded_sub}&cid={channel_id}")
-            elif (
-                line.endswith(".ts")
-                or line.endswith(".aac")
-                or ".ts?" in line
-                or ".aac?" in line
-            ):
+            elif any(ext in line for ext in (".ts", ".aac", ".m4s", ".mp4")):
                 seg_url = line if line.startswith("http") else f"{cdn_base}/{line}"
                 if query and "?" not in seg_url:
                     seg_url = f"{seg_url}?{query}"
@@ -163,23 +184,24 @@ async def get_epg(request: Request):
 @router.get("/live/{channel_id}.m3u8")
 async def get_live_stream(channel_id: str, request: Request):
     clean_id = channel_id.removesuffix(".m3u8")
+    target_id = FALLBACK_CHANNEL_MAP.get(clean_id, clean_id)
     jio_client: JioApiClient = request.app.state.jio_client
     settings: Settings = request.app.state.settings
     base_url = get_base_url(request, settings)
     try:
-        playback_url = await jio_client.get_playback_url(clean_id)
+        playback_url = await jio_client.get_playback_url(target_id)
         try:
-            async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+            async with get_upstream_client(settings, timeout=8.0) as client:
                 resp = await client.get(playback_url)
                 if resp.status_code == 200 and ("#EXTM3U" in resp.text):
-                    rewritten = rewrite_m3u8(resp.text, str(resp.url), base_url, clean_id)
+                    rewritten = rewrite_m3u8(resp.text, str(resp.url), base_url, target_id)
                     return Response(
                         content=rewritten,
                         media_type="application/vnd.apple.mpegurl",
                         headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
                     )
         except Exception as e:
-            logger.warning(f"Could not rewrite upstream playlist for channel {clean_id}: {e}")
+            logger.warning(f"Could not rewrite upstream playlist for channel {target_id}: {e}")
         return RedirectResponse(url=playback_url, status_code=302)
     except Exception as e:
         logger.error(f"Failed to resolve playback URL for channel {clean_id}: {e}")
@@ -191,7 +213,7 @@ async def render_m3u8(url: str, cid: str, request: Request):
     settings: Settings = request.app.state.settings
     base_url = get_base_url(request, settings)
     try:
-        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+        async with get_upstream_client(settings, timeout=8.0) as client:
             resp = await client.get(url)
             if resp.status_code != 200:
                 raise HTTPException(status_code=resp.status_code, detail="Upstream playlist error")
