@@ -340,6 +340,58 @@ class JioApiClient:
                 raise RuntimeError(f"Playback API returned empty result: {body}")
             return result_url
 
+    async def get_stream_key(self, key_url: str, channel_id: str) -> bytes:
+        auth = self.load_auth_data()
+        sso_token = auth.get("ssoToken") or auth.get("sso_token", "")
+        access_token = auth.get("accessToken") or auth.get("access_token", "")
+        crm = auth.get("crm", "")
+        unique_id = auth.get("uniqueId") or auth.get("unique_id", "")
+        device_id = auth.get("deviceId") or self.device_id
+
+        hdnea_val = ""
+        if "__hdnea__=" in key_url:
+            for part in key_url.split("?")[1].split("&"):
+                if part.startswith("__hdnea__="):
+                    hdnea_val = part.split("=", 1)[1]
+                    break
+
+        headers = {
+            "User-Agent": "plaYtv/7.1.8 (Linux;Android 8.1.0) ExoPlayerLib/2.11.7",
+            "appkey": APPKEY,
+            "channel_id": str(channel_id),
+            "channelId": str(channel_id),
+            "crmid": crm,
+            "userId": crm,
+            "subscriberId": crm,
+            "deviceId": device_id,
+            "devicetype": DEVICE_TYPE,
+            "isott": "false",
+            "languageId": "6",
+            "lbcookie": "1",
+            "os": OS_NAME,
+            "osVersion": "13",
+            "uniqueId": unique_id,
+            "usergroup": USERGROUP,
+            "versionCode": VERSION_CODE,
+            "accesstoken": access_token,
+            "ssotoken": sso_token,
+            "srno": "230203144000",
+        }
+        if hdnea_val:
+            headers["Cookie"] = f"__hdnea__={hdnea_val}"
+
+        proxy = self.settings.proxy_url if self.settings.proxy_enabled else None
+        client_kwargs = {"timeout": 10.0, "http2": False}
+        if proxy:
+            client_kwargs["proxy"] = proxy
+
+        async with httpx.AsyncClient(**client_kwargs) as client:
+            resp = await client.get(key_url, headers=headers)
+            if resp.status_code == 200:
+                return resp.content
+            logger.error(f"Failed to fetch AES key: {resp.status_code} - {resp.text}")
+            raise RuntimeError(f"Failed to fetch AES key ({resp.status_code})")
+
     async def test_connectivity(self, proxy_url: Optional[str] = None) -> Dict[str, Any]:
         results: Dict[str, Any] = {
             "direct_playback": {"reachable": False, "status": 0, "latency_ms": 0, "error": None},

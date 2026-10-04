@@ -99,3 +99,36 @@ async def test_playlist_working_endpoints(app):
         assert data["total"] == 1
         assert data["channels"][0]["channel_name"] == "DD National"
 
+
+def test_rewrite_m3u8():
+    from app.routes.iptv import rewrite_m3u8
+
+    raw_m3u8 = """#EXTM3U
+#EXT-X-VERSION:7
+#EXT-X-KEY:METHOD=AES-128,URI="https://tv.media.jio.com/hls/aes128.pkey"
+#EXT-X-STREAM-INF:BANDWIDTH=212000
+variant.m3u8
+segment-0.ts
+"""
+    rewritten = rewrite_m3u8(
+        content=raw_m3u8,
+        parent_url="https://cdn.jio.com/live/index.m3u8?token=123",
+        base_url="https://tv.trylocalhost.com",
+        channel_id="202",
+    )
+    assert "https://tv.trylocalhost.com/render.key?url=" in rewritten
+    assert "https://tv.trylocalhost.com/render.m3u8?url=" in rewritten
+    assert "https://cdn.jio.com/live/segment-0.ts?token=123" in rewritten
+
+
+@pytest.mark.asyncio
+async def test_render_key_endpoint(app):
+    transport = ASGITransport(app=app)
+    with patch("app.jio_api.JioApiClient.get_stream_key", new_callable=AsyncMock) as mock_key:
+        mock_key.return_value = b"\x00" * 16
+        async with AsyncClient(transport=transport, base_url="https://tv.trylocalhost.com") as client:
+            resp = await client.get("/render.key?url=http://example.com/key.pkey&cid=202")
+            assert resp.status_code == 200
+            assert resp.content == b"\x00" * 16
+            assert resp.headers["content-type"] == "application/octet-stream"
+

@@ -1,7 +1,10 @@
 import logging
+import re
+import urllib.parse
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, Request
+import httpx
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
 
 from app.channel_manager import ChannelManager
@@ -17,6 +20,62 @@ def get_base_url(request: Request, settings: Settings) -> str:
     if settings.base_url:
         return settings.base_url.rstrip("/")
     return str(request.base_url).rstrip("/")
+
+
+def rewrite_m3u8(content: str, parent_url: str, base_url: str, channel_id: str) -> str:
+    parent_no_q = parent_url.split("?")[0]
+    cdn_base = parent_no_q.rsplit("/", 1)[0]
+    query = parent_url.split("?")[1] if "?" in parent_url else ""
+
+    lines = []
+    for line in content.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith("#EXT-X-KEY:"):
+            m = re.search(r'URI="([^"]+)"', line)
+            if m:
+                raw_key_uri = m.group(1)
+                if not raw_key_uri.startswith("http"):
+                    raw_key_uri = f"{cdn_base}/{raw_key_uri}"
+                if query and "?" not in raw_key_uri:
+                    raw_key_uri = f"{raw_key_uri}?{query}"
+                encoded_key_uri = urllib.parse.quote(raw_key_uri, safe="")
+                new_key_uri = f"{base_url}/render.key?url={encoded_key_uri}&cid={channel_id}"
+                line = line[: m.start(1)] + new_key_uri + line[m.end(1) :]
+            lines.append(line)
+        elif line.startswith("#"):
+            m = re.search(r'URI="([^"]+)"', line)
+            if m and (line.endswith('.m3u8"') or ".m3u8?" in line):
+                sub_uri = m.group(1)
+                if not sub_uri.startswith("http"):
+                    sub_uri = f"{cdn_base}/{sub_uri}"
+                if query and "?" not in sub_uri:
+                    sub_uri = f"{sub_uri}?{query}"
+                encoded_sub = urllib.parse.quote(sub_uri, safe="")
+                new_sub_uri = f"{base_url}/render.m3u8?url={encoded_sub}&cid={channel_id}"
+                line = line[: m.start(1)] + new_sub_uri + line[m.end(1) :]
+            lines.append(line)
+        else:
+            if line.endswith(".m3u8") or ".m3u8?" in line:
+                sub_url = line if line.startswith("http") else f"{cdn_base}/{line}"
+                if query and "?" not in sub_url:
+                    sub_url = f"{sub_url}?{query}"
+                encoded_sub = urllib.parse.quote(sub_url, safe="")
+                lines.append(f"{base_url}/render.m3u8?url={encoded_sub}&cid={channel_id}")
+            elif (
+                line.endswith(".ts")
+                or line.endswith(".aac")
+                or ".ts?" in line
+                or ".aac?" in line
+            ):
+                seg_url = line if line.startswith("http") else f"{cdn_base}/{line}"
+                if query and "?" not in seg_url:
+                    seg_url = f"{seg_url}?{query}"
+                lines.append(seg_url)
+            else:
+                lines.append(line)
+    return "\n".join(lines) + "\n"
 
 
 @router.get("/playlist.m3u", response_class=PlainTextResponse)
@@ -86,8 +145,6 @@ async def get_working_playlist(
     )
 
 
-
-
 @router.get("/epg.xml.gz")
 async def get_epg(request: Request):
     channel_mgr: ChannelManager = request.app.state.channel_manager
@@ -107,10 +164,61 @@ async def get_epg(request: Request):
 async def get_live_stream(channel_id: str, request: Request):
     clean_id = channel_id.removesuffix(".m3u8")
     jio_client: JioApiClient = request.app.state.jio_client
+    settings: Settings = request.app.state.settings
+    base_url = get_base_url(request, settings)
     try:
         playback_url = await jio_client.get_playback_url(clean_id)
+        try:
+            async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+                resp = await client.get(playback_url)
+                if resp.status_code == 200 and ("#EXTM3U" in resp.text):
+                    rewritten = rewrite_m3u8(resp.text, str(resp.url), base_url, clean_id)
+                    return Response(
+                        content=rewritten,
+                        media_type="application/vnd.apple.mpegurl",
+                        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+                    )
+        except Exception as e:
+            logger.warning(f"Could not rewrite upstream playlist for channel {clean_id}: {e}")
         return RedirectResponse(url=playback_url, status_code=302)
     except Exception as e:
         logger.error(f"Failed to resolve playback URL for channel {clean_id}: {e}")
         raise HTTPException(status_code=502, detail=f"Playback resolution failed: {str(e)}")
+
+
+@router.get("/render.m3u8")
+async def render_m3u8(url: str, cid: str, request: Request):
+    settings: Settings = request.app.state.settings
+    base_url = get_base_url(request, settings)
+    try:
+        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as client:
+            resp = await client.get(url)
+            if resp.status_code != 200:
+                raise HTTPException(status_code=resp.status_code, detail="Upstream playlist error")
+            rewritten = rewrite_m3u8(resp.text, str(resp.url), base_url, cid)
+            return Response(
+                content=rewritten,
+                media_type="application/vnd.apple.mpegurl",
+                headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to render sub-playlist for channel {cid}: {e}")
+        raise HTTPException(status_code=502, detail=f"Failed to render playlist: {str(e)}")
+
+
+@router.get("/render.key")
+async def render_key(url: str, cid: str, request: Request):
+    jio_client: JioApiClient = request.app.state.jio_client
+    try:
+        key_bytes = await jio_client.get_stream_key(url, cid)
+        return Response(
+            content=key_bytes,
+            media_type="application/octet-stream",
+            headers={"Cache-Control": "max-age=60"},
+        )
+    except Exception as e:
+        logger.error(f"Failed to fetch key for channel {cid}: {e}")
+        raise HTTPException(status_code=502, detail=f"Failed to fetch decryption key: {str(e)}")
 
