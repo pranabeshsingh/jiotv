@@ -1,0 +1,18 @@
+[Unit]
+Description=JioTV Headless IPTV Server (Python FastAPI)
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/jiotv
+EnvironmentFile=-/opt/jiotv/.env
+ExecStart=/opt/jiotv/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 5001 --workers 2
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
