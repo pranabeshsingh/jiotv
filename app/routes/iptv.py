@@ -103,11 +103,14 @@ async def get_epg(request: Request):
 
 
 @router.get("/live/{channel_id}")
+@router.get("/live/{channel_id}.m3u8")
 async def get_live_stream(channel_id: str, request: Request):
+    clean_id = channel_id.removesuffix(".m3u8")
     jio_client: JioApiClient = request.app.state.jio_client
     try:
-        playback_url = await jio_client.get_playback_url(channel_id)
+        playback_url = await jio_client.get_playback_url(clean_id)
         return RedirectResponse(url=playback_url, status_code=302)
     except Exception as e:
-        logger.error(f"Failed to resolve playback URL for channel {channel_id}: {e}")
+        logger.error(f"Failed to resolve playback URL for channel {clean_id}: {e}")
         raise HTTPException(status_code=502, detail=f"Playback resolution failed: {str(e)}")
+

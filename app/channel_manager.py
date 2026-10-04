@@ -200,15 +200,15 @@ class ChannelManager:
             logo = c.get("logo", "")
             group = c.get("genre", "General")
             c_lang = c.get("language", "")
-            stream_url = f"{base}/live/{cid}"
+            stream_url = f"{base}/live/{cid}.m3u8"
 
             lines.append(
                 f'#EXTINF:-1 tvg-id="{cid}" tvg-name="{name}" tvg-logo="{logo}" group-title="{group}" tvg-language="{c_lang}", {name}'
             )
-            lines.append("#KODIPROP:inputstream.adaptive.manifest_type=mpd")
             lines.append(stream_url)
 
         return "\n".join(lines) + "\n"
+
 
 
     def get_epg_path(self) -> Path:
