@@ -6,9 +6,7 @@ to bypass datacenter IP restrictions (HTTP 450) and VPN tunnels.
 """
 
 import socket
-import select
 import threading
-import sys
 
 # Tailscale interface / IP of homeserver
 LISTEN_HOST = "100.107.251.122"

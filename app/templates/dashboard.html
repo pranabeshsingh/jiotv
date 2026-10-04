@@ -169,20 +169,37 @@
       </div>
       <div class="card-body">
         <div class="url-copy-grid">
+          <div class="url-copy-box" style="border: 1px solid rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.03);">
+            <div class="flex-between">
+              <label class="url-label" style="color: #10b981; font-weight: 600;">Working Channels Playlist (Recommended)</label>
+              <span class="badge badge-success">Zero 403 Errors</span>
+            </div>
+            <div class="copy-input-group mt-2">
+              <input type="text" readonly id="url-m3u-working" class="form-input font-mono" value="{{ base_url }}/playlist_working.m3u">
+              <button class="btn btn-primary" onclick="copyInput('url-m3u-working')">Copy URL</button>
+            </div>
+            <span class="form-hint mt-1">Excludes paywalled JioTV Premium channels (Sony SAB, Star Plus, etc.). Plays 100% of channels on standard Jio mobile.</span>
+          </div>
+
           <div class="url-copy-box">
-            <label class="url-label">M3U Playlist URL</label>
-            <div class="copy-input-group">
+            <div class="flex-between">
+              <label class="url-label">All Channels Playlist (Full Catalog)</label>
+              <span class="badge">1,200+ Channels</span>
+            </div>
+            <div class="copy-input-group mt-2">
               <input type="text" readonly id="url-m3u" class="form-input font-mono" value="{{ base_url }}/playlist.m3u">
               <button class="btn btn-secondary" onclick="copyInput('url-m3u')">Copy URL</button>
             </div>
+            <span class="form-hint mt-1">Includes both free channels and channels requiring the ₹55/mo JioTV Premium subscription.</span>
           </div>
 
           <div class="url-copy-box">
             <label class="url-label">EPG XMLTV Guide URL</label>
-            <div class="copy-input-group">
+            <div class="copy-input-group mt-2">
               <input type="text" readonly id="url-epg" class="form-input font-mono" value="{{ base_url }}/epg.xml.gz">
               <button class="btn btn-secondary" onclick="copyInput('url-epg')">Copy URL</button>
             </div>
+            <span class="form-hint mt-1">Full 7-day electronic program guide with channel logos for Kodi, TiviMate, and OTT Navigator.</span>
           </div>
         </div>
       </div>
@@ -203,7 +220,7 @@
           <div class="step-item">
             <div class="step-number">2</div>
             <div class="step-text">
-              <strong>Configure M3U Playlist:</strong> Open Add-on Settings ➔ <em>General ➔ M3U Play List URL</em>, paste your URL: <code><span class="url-preview-m3u">{{ base_url }}/playlist.m3u</span></code>.
+              <strong>Configure M3U Playlist:</strong> Open Add-on Settings ➔ <em>General ➔ M3U Play List URL</em>, paste your Working Playlist URL: <code><span class="url-preview-m3u">{{ base_url }}/playlist_working.m3u</span></code>.
             </div>
           </div>
           <div class="step-item">
@@ -230,6 +247,11 @@
         <h3 class="card-title">Live Channel Directory</h3>
         <div class="filters-bar">
           <input type="text" id="filter-search" class="form-input form-input-sm" placeholder="Search channels..." oninput="filterChannels()">
+          <select id="filter-plan" class="form-select form-select-sm" onchange="filterChannels()">
+            <option value="working" selected>Working / Included</option>
+            <option value="all">All Channels</option>
+            <option value="premium">Requires Premium Only</option>
+          </select>
           <select id="filter-language" class="form-select form-select-sm" onchange="filterChannels()">
             <option value="">All Languages</option>
             <option value="Hindi">Hindi</option>

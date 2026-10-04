@@ -12,17 +12,22 @@ document.addEventListener("DOMContentLoaded", () => {
 function setupDynamicUrls() {
   const origin = window.location.origin;
   const m3uInput = document.getElementById("url-m3u");
+  const m3uWorkingInput = document.getElementById("url-m3u-working");
   const epgInput = document.getElementById("url-epg");
   
   if (m3uInput && m3uInput.value.includes("tv.trylocalhost.com") && window.location.hostname !== "tv.trylocalhost.com") {
     m3uInput.value = `${origin}/playlist.m3u`;
+  }
+  if (m3uWorkingInput && m3uWorkingInput.value.includes("tv.trylocalhost.com") && window.location.hostname !== "tv.trylocalhost.com") {
+    m3uWorkingInput.value = `${origin}/playlist_working.m3u`;
   }
   if (epgInput && epgInput.value.includes("tv.trylocalhost.com") && window.location.hostname !== "tv.trylocalhost.com") {
     epgInput.value = `${origin}/epg.xml.gz`;
   }
 
   document.querySelectorAll(".url-preview-m3u").forEach(el => {
-    if (m3uInput) el.textContent = m3uInput.value;
+    if (m3uWorkingInput) el.textContent = m3uWorkingInput.value;
+    else if (m3uInput) el.textContent = m3uInput.value;
   });
   document.querySelectorAll(".url-preview-epg").forEach(el => {
     if (epgInput) el.textContent = epgInput.value;
@@ -59,7 +64,8 @@ async function fetchStatus() {
         badge.innerHTML = `<span class="pulse-dot"></span><span class="badge-text">${data.jio_auth.subscriber_name || 'Jio Active'}</span>`;
       }
       if (subName) subName.textContent = data.jio_auth.subscriber_name || "Jio Subscriber";
-      if (subMobile) subMobile.textContent = data.jio_auth.mobile || "Logged In";
+      const plan = data.jio_auth.plan_desc || "Standard Jio Mobile";
+      if (subMobile) subMobile.textContent = `${data.jio_auth.mobile || 'Active'} • ${plan}`;
     } else {
       if (badge) {
         badge.className = "status-badge checking";
@@ -68,6 +74,7 @@ async function fetchStatus() {
       if (subName) subName.textContent = "Not Authenticated";
       if (subMobile) subMobile.textContent = "Click 'Jio Login' to connect";
     }
+
 
     if (chCount) chCount.textContent = data.channels_count;
     if (tabChCount) tabChCount.textContent = data.channels_count;
@@ -213,6 +220,7 @@ async function loadChannels() {
 // Filter Channels
 function filterChannels() {
   const search = document.getElementById("filter-search").value.toLowerCase().trim();
+  const plan = document.getElementById("filter-plan") ? document.getElementById("filter-plan").value : "working";
   const lang = document.getElementById("filter-language").value.toLowerCase();
   const genre = document.getElementById("filter-genre").value.toLowerCase();
 
@@ -220,7 +228,15 @@ function filterChannels() {
     const matchSearch = !search || c.channel_name.toLowerCase().includes(search) || String(c.channel_id).includes(search);
     const matchLang = !lang || (c.language && c.language.toLowerCase() === lang);
     const matchGenre = !genre || (c.genre && c.genre.toLowerCase() === genre);
-    return matchSearch && matchLang && matchGenre;
+
+    let matchPlan = true;
+    if (plan === "working") {
+      matchPlan = !c.is_premium;
+    } else if (plan === "premium") {
+      matchPlan = Boolean(c.is_premium);
+    }
+
+    return matchSearch && matchLang && matchGenre && matchPlan;
   });
 
   renderChannels(filtered);
@@ -245,6 +261,9 @@ function renderChannels(channels) {
       <div class="channel-meta">
         <span class="badge">${c.language || 'TV'}</span>
         ${c.is_hd ? '<span class="badge badge-success">HD</span>' : ''}
+        ${c.is_premium 
+          ? '<span class="badge" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3);">JioTV Premium</span>' 
+          : '<span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3);">Included</span>'}
       </div>
       <a href="/live/${c.channel_id}" target="_blank" class="btn btn-secondary btn-sm btn-block">
         Play Stream
@@ -252,6 +271,7 @@ function renderChannels(channels) {
     </div>
   `).join("");
 }
+
 
 // Copy Utilities
 function copyInput(elementId) {
