@@ -73,14 +73,20 @@ class JioApiClient:
         if entitlements_file.exists():
             try:
                 data = json.loads(entitlements_file.read_text(encoding="utf-8"))
-                for pkg in data.get("PackageInfo", []):
-                    b_type = str(pkg.get("business_type", "")).lower()
-                    p_name = str(pkg.get("package_name", "")).lower()
-                    p_id = str(pkg.get("planid", "")).lower()
-                    if b_type == "premium" or "premium" in p_name or "rs55" in p_id:
-                        has_premium = True
-                        plan_desc = "JioTV Premium Active"
-                        break
+                pkgs = data.get("PackageInfo", [])
+                if len(pkgs) > 1:
+                    has_premium = True
+                    plan_desc = "JioTV Premium Active"
+                else:
+                    for pkg in pkgs:
+                        b_type = str(pkg.get("business_type", "")).lower()
+                        p_name = str(pkg.get("package_name", "")).lower()
+                        p_id = str(pkg.get("planid", "")).lower()
+                        p_type = str(pkg.get("plantype", "")).lower()
+                        if b_type == "premium" or "premium" in p_name or "rs55" in p_id or p_type == "ott" or (p_id and p_id != "1"):
+                            has_premium = True
+                            plan_desc = "JioTV Premium Active"
+                            break
             except Exception:
                 pass
 
@@ -104,17 +110,18 @@ class JioApiClient:
                 pass
 
         auth = self.load_auth_data()
-        sso_token = auth.get("ssoToken") or auth.get("sso_token", "")
-        if not sso_token:
+        access_token = auth.get("accessToken") or auth.get("access_token", "")
+        if not access_token:
             return {}
 
         url = f"https://{JIOTV_API_DOMAIN}/userservice/apis/v1/plans"
         headers = {
             "User-Agent": USER_AGENT,
+            "Accept": "application/json",
             "devicetype": DEVICE_TYPE,
             "os": OS_NAME,
-            "ssoToken": sso_token,
-            "crm": auth.get("crm", ""),
+            "versionCode": VERSION_CODE,
+            "accesstoken": access_token,
             "uniqueId": auth.get("uniqueId") or auth.get("unique_id", ""),
         }
         client_kwargs = {"timeout": 10.0}
@@ -136,13 +143,17 @@ class JioApiClient:
     async def has_premium_entitlement(self, force: bool = False) -> bool:
         data = await self.get_entitlements(force=force)
         pkg_info = data.get("PackageInfo", [])
+        if len(pkg_info) > 1:
+            return True
         for pkg in pkg_info:
             b_type = str(pkg.get("business_type", "")).lower()
             p_name = str(pkg.get("package_name", "")).lower()
             p_id = str(pkg.get("planid", "")).lower()
-            if b_type == "premium" or "premium" in p_name or "rs55" in p_id:
+            p_type = str(pkg.get("plantype", "")).lower()
+            if b_type == "premium" or "premium" in p_name or "rs55" in p_id or p_type == "ott" or (p_id and p_id != "1"):
                 return True
         return False
+
 
 
     async def send_otp(self, mobile: str) -> Dict[str, Any]:

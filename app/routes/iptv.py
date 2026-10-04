@@ -38,12 +38,16 @@ async def get_playlist(
     elif filter and filter.strip().lower() in ("working", "free", "subscribed"):
         working_only = True
 
+    jio_client: JioApiClient = request.app.state.jio_client
+    has_premium = await jio_client.has_premium_entitlement()
+    effective_working_only = working_only and not has_premium
+
     m3u_content = channel_mgr.generate_m3u(
         base_url=base_url,
         lang=lang,
         genre=genre,
         is_hd=is_hd,
-        working_only=working_only,
+        working_only=effective_working_only,
     )
     return PlainTextResponse(
         content=m3u_content,
@@ -62,20 +66,25 @@ async def get_working_playlist(
 ):
     settings: Settings = request.app.state.settings
     channel_mgr: ChannelManager = request.app.state.channel_manager
+    jio_client: JioApiClient = request.app.state.jio_client
     base_url = get_base_url(request, settings)
+
+    has_premium = await jio_client.has_premium_entitlement()
+    effective_working_only = not has_premium
 
     m3u_content = channel_mgr.generate_m3u(
         base_url=base_url,
         lang=lang,
         genre=genre,
         is_hd=is_hd,
-        working_only=True,
+        working_only=effective_working_only,
     )
     return PlainTextResponse(
         content=m3u_content,
         media_type="application/vnd.apple.mpegurl",
         headers={"Content-Disposition": 'inline; filename="playlist_working.m3u"'},
     )
+
 
 
 

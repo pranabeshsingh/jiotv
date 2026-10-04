@@ -143,18 +143,24 @@ async def list_channels(
     working: Optional[bool] = Query(None),
 ):
     channel_mgr: ChannelManager = request.app.state.channel_manager
+    jio_client: JioApiClient = request.app.state.jio_client
+
     working_only = False
     if working:
         working_only = True
     elif filter and filter.strip().lower() in ("working", "free", "subscribed"):
         working_only = True
 
+    has_premium = await jio_client.has_premium_entitlement()
+    effective_working_only = working_only and not has_premium
+
     channels = channel_mgr.get_channels(
         lang=lang,
         genre=genre,
         search=search,
         is_hd=is_hd,
-        working_only=working_only,
+        working_only=effective_working_only,
     )
     return {"total": len(channels), "channels": channels}
+
 
